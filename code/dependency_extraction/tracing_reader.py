@@ -50,7 +50,3 @@ class TracingReader:
         for inject_time in inject_time_list:
             with open(os.path.join(self.tracing_base_path, inject_time + '.json'), 'w') as f:
                 json.dump(self.split_specific_time_data(inject_time), f)
-
-
-t = TracingReader()
-t.extract_tracing_data()

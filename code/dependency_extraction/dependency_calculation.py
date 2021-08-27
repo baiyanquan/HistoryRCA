@@ -5,7 +5,7 @@ from utils.time_handler import TimeHandler
 from tracing_reader import TracingReader
 
 
-class DependencyExtraction:
+class DependencyCalculation:
     def __init__(self):
         self.inject_reader = InjectionReader()
         self.tracing_reader = TracingReader()
@@ -67,15 +67,17 @@ class DependencyExtraction:
                 parent_span_info_id = span['references'][0]['traceID'] + '-' + span['references'][0]['spanID']
                 if parent_span_info_id not in span_info_dict:
                     continue
-                correlation_key = span_info_dict[parent_span_info_id]['serviceName'] + '-' + span['process'][
+                correlation_key = span_info_dict[parent_span_info_id]['serviceName'] + '->' + span['process'][
                     'serviceName']
                 duration = span_info_dict[parent_span_info_id]['duration'] - int(span['duration'])
                 if correlation_key in frequency_dict.keys():
-                    frequency_dict[correlation_key] += 1
-                    duration_dict[correlation_key] += duration
+                    if span_info_dict[parent_span_info_id]['serviceName'] != span['process']['serviceName']:
+                        frequency_dict[correlation_key] += 1
+                        duration_dict[correlation_key] += duration
                 else:
-                    frequency_dict[correlation_key] = 1
-                    duration_dict[correlation_key] = duration
+                    if span_info_dict[parent_span_info_id]['serviceName'] != span['process']['serviceName']:
+                        frequency_dict[correlation_key] = 1
+                        duration_dict[correlation_key] = duration
 
         sum_dict = dict()
         for correlation_key in frequency_dict.keys():
@@ -87,7 +89,7 @@ class DependencyExtraction:
         correlation_dict = dict()
         for service_key in sum_dict.keys():
             for correlation_key in frequency_dict.keys():
-                if service_key + '-' in service_key:
+                if service_key + '-' in correlation_key:
                     if service_key in correlation_dict:
                         correlation_dict[service_key].append({
                             'correlation': correlation_key,
@@ -100,16 +102,15 @@ class DependencyExtraction:
                         }]
         for service_key in correlation_dict.keys():
             for index in range(len(correlation_dict[service_key]) - 1):
-                correlation_dict[service_key][index] = correlation_dict[service_key][index]['value'] / sum_dict[index]
+                correlation_dict[service_key][index]['value'] = correlation_dict[service_key][index]['value'] / sum_dict[service_key]
             correlation_dict[service_key][len(correlation_dict[service_key]) - 1]['value'] = 1
             for index in range(len(correlation_dict[service_key]) - 1):
                 correlation_dict[service_key][len(correlation_dict[service_key]) - 1]['value'] -= \
-                    correlation_dict[service_key][index]['value'] / sum_dict[index]
-
+                    correlation_dict[service_key][index]['value']
         for service_key, value in correlation_dict.items():
             for item in value:
                 result_dict['dependency'][item['correlation']] = item['value']
-        for key, value in duration_dict:
+        for key, value in duration_dict.items():
             result_dict['duration'][key] = int(value/(end_timestamp - start_timestamp))
         return result_dict
 
@@ -118,10 +119,9 @@ class DependencyExtraction:
         根据inject_action.log中的每一次成功混沌实验，从提取后的tracing数据中计算服务间的依赖度并存储为json文件
         :param preparation: 是否需要预处理得到基础的tracing数据，默认为不处理
         """
-        # if preparation:
-        #     self.tracing_preparation()
+        if preparation:
+            self.tracing_preparation()
 
-        print("a")
         inject_time_list = self.inject_reader.get_injection_time()
         for inject_time in inject_time_list:
             correlation_dict = {
@@ -133,9 +133,4 @@ class DependencyExtraction:
                                                      TimeHandler.utc_str_to_timestamp(inject_time + ":36:10"))
             }
             with open(os.path.join(self.result_base_path, inject_time + '.json'), 'w') as f:
-                json.dump(correlation_dict, f)
-
-
-print("a")
-d = DependencyExtraction()
-d.extract_dependency()
+                json.dump(correlation_dict, f, indent=4)

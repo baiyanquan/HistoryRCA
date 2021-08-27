@@ -41,9 +41,9 @@ class InjectionReader:
         }
         command_details = action_str.split(' ')
         if 'pod' and 'labels' in action_str:
-            inject_action_dict['position'] = 'Pod:' + command_details[command_details.index('--labels') + 1].strip('name\\=')
+            inject_action_dict['position'] = 'http://k8s/pod/' + command_details[command_details.index('--labels') + 1].strip('name\\=')
         else:
-            inject_action_dict['position'] = 'Node:' + command_details[command_details.index('--names') + 1]
+            inject_action_dict['position'] = 'http://k8s/node/' + command_details[command_details.index('--names') + 1]
         inject_action_dict['type'] = ' '.join(command_details[0:5])
         inject_action_dict['timeout'] = command_details[command_details.index('--timeout') + 1]
         return inject_action_dict
